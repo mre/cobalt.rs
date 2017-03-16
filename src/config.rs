@@ -22,6 +22,7 @@ pub struct Config {
     pub link: Option<String>,
     pub ignore: Vec<Pattern>,
     pub excerpt_separator: String,
+    pub theme: String,
 }
 
 impl Default for Config {
@@ -41,6 +42,7 @@ impl Default for Config {
             link: None,
             ignore: vec![],
             excerpt_separator: "\n\n".to_owned(),
+            theme: "base16-ocean.dark".to_owned(),
         }
     }
 }
@@ -113,6 +115,10 @@ impl Config {
 
         if let Some(excerpt_separator) = yaml["excerpt_separator"].as_str() {
             config.excerpt_separator = excerpt_separator.to_owned();
+        };
+
+        if let Some(theme) = yaml["theme"].as_str() {
+            config.theme = theme.to_owned();
         };
 
         Ok(config)

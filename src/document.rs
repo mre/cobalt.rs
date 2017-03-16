@@ -10,6 +10,7 @@ use yaml_rust::{Yaml, YamlLoader};
 use std::io::Read;
 use regex::Regex;
 use rss;
+use config::Config;
 
 #[cfg(all(feature="syntax-highlight", not(windows)))]
 use syntax_highlight::{initialize_codeblock, decorate_markdown};
@@ -260,7 +261,12 @@ impl Document {
     /// take `"extends"` attribute into account. This function can be used for
     /// rendering content or excerpt.
     #[cfg(all(feature="syntax-highlight", not(windows)))]
-    fn render_html(&self, content: &str, context: &mut Context, source: &Path) -> Result<String> {
+    fn render_html(&self,
+                   content: &str,
+                   context: &mut Context,
+                   source: &Path,
+                   config: &Config)
+                   -> Result<String> {
         let mut options =
             LiquidOptions { file_system: Some(source.to_owned()), ..Default::default() };
         options.blocks.insert("highlight".to_string(), Box::new(initialize_codeblock));
@@ -272,7 +278,7 @@ impl Document {
                 let mut buf = String::new();
                 let parser = cmark::Parser::new(&html);
                 #[cfg(feature="syntax-highlight")]
-                cmark::html::push_html(&mut buf, decorate_markdown(parser));
+                cmark::html::push_html(&mut buf, decorate_markdown(parser, config));
                 #[cfg(not(feature="syntax-highlight"))]
                 cmark::html::push_html(&mut buf, parser);
                 buf
@@ -281,7 +287,12 @@ impl Document {
         Ok(html.to_owned())
     }
     #[cfg(any(not(feature="syntax-highlight"), windows))]
-    fn render_html(&self, content: &str, context: &mut Context, source: &Path) -> Result<String> {
+    fn render_html(&self,
+                   content: &str,
+                   context: &mut Context,
+                   source: &Path,
+                   _: &Config)
+                   -> Result<String> {
         let options = LiquidOptions { file_system: Some(source.to_owned()), ..Default::default() };
         let template = try!(liquid::parse(content, options));
         let mut html = try!(template.render(context)).unwrap_or_default();
@@ -319,8 +330,9 @@ impl Document {
     pub fn render_excerpt(&mut self,
                           context: &mut Context,
                           source: &Path,
-                          default_excerpt_separator: &str)
+                          config: &Config)
                           -> Result<()> {
+        let ref default_excerpt_separator = config.excerpt_separator;
         let excerpt_html = {
             let excerpt_attr = self.attributes
                 .get("excerpt")
@@ -332,13 +344,14 @@ impl Document {
                 .unwrap_or(default_excerpt_separator);
 
             if let Some(excerpt_str) = excerpt_attr {
-                try!(self.render_html(excerpt_str, context, source))
+                try!(self.render_html(excerpt_str, context, source, config))
             } else if excerpt_separator.is_empty() {
-                try!(self.render_html("", context, source))
+                try!(self.render_html("", context, source, config))
             } else {
                 try!(self.render_html(&self.extract_markdown_references(excerpt_separator),
                                       context,
-                                      source))
+                                      source,
+                                      config))
             }
         };
 
@@ -359,9 +372,10 @@ impl Document {
                   context: &mut Context,
                   source: &Path,
                   layouts_dir: &Path,
-                  layouts_cache: &mut HashMap<String, String>)
+                  layouts_cache: &mut HashMap<String, String>,
+                  config: &Config)
                   -> Result<String> {
-        let content_html = try!(self.render_html(&self.content, context, source));
+        let content_html = try!(self.render_html(&self.content, context, source, config));
         self.attributes.insert("content".to_owned(), Value::Str(content_html.clone()));
         context.set_val("content", Value::Str(content_html.clone()));
 
